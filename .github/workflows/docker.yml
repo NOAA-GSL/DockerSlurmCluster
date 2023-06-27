@@ -58,7 +58,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./frontend
-          file: ./Dockerfile
+          file: ./frontend/Dockerfile
           push: true
           tags: noaagsl/slurm-frontend:latest
           cache-from: type=gha
@@ -69,7 +69,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./master
-          file: ./Dockerfile
+          file: ./master/Dockerfile
           push: true
           tags: noaagsl/slurm-master:latest
           cache-from: type=gha
@@ -80,7 +80,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./node
-          file: ./Dockerfile
+          file: ./node/Dockerfile
           push: true
           tags: noaagsl/slurm-node:latest
           cache-from: type=gha
