@@ -1,3 +1,5 @@
+[![Docker Slurm](https://github.com/NOAA-GSL/DockerSlurmCluster/actions/workflows/docker.yml/badge.svg?branch=main)](https://github.com/NOAA-GSL/DockerSlurmCluster/actions/workflows/docker.yml)
+
 # Slurm Cluster in Ubuntu Docker Images Using Docker Compose
 This is an installation of a Slurm cluster inside Docker.
 
