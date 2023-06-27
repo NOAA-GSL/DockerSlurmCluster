@@ -1,0 +1,43 @@
+name: Docker Slurm
+
+on:
+  push:
+    branches: [ devel ]
+  pull_request:
+    branches: [ devel ]
+  workflow_dispatch:
+
+jobs:
+
+  docker_build:
+    name: Docker Build
+    runs-on: ubuntu-20.04
+
+    steps:
+      -
+        name: Checkout Repository
+        uses: actions/checkout@v3
+
+      -
+        name: Build and start containers
+        run: docker-compose -f docker-compose.yml up --build -d
+
+      -
+        name: Check cluster logs
+        run: docker-compose -f docker-compose.yml logs
+
+      -
+        name: Check status of the cluster containers
+        run: docker-compose -f docker-compose.yml ps
+
+      -
+        name: Check status of Slurm
+        run: docker exec slurm-frontend sinfo
+
+      -
+        name: Run a Slurm job
+        run: docker exec slurm-frontend srun hostname
+
+      -
+        name: Shut down Slurm cluster containers
+        run: docker-compose -f docker-compose.yml down
