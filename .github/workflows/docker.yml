@@ -39,13 +39,6 @@ jobs:
         run: docker exec slurm-frontend srun hostname
 
       -
-        name: ssh to a Slurm compute node
-        run: |
-          docker exec -it slurm-frontend ssh-keygen -t rsa -f /home/admin/.ssh/id_rsa -N ""
-          docker exec -it slurm-frontend cp /home/admin/.ssh/id_rsa.pub /home/admin/.ssh/authorized_keys
-          docker exec -it slurm-frontend ssh slurmnode1 hostname
-
-      -
         name: Shut down Slurm cluster containers
         run: docker-compose -f docker-compose.yml down
 
