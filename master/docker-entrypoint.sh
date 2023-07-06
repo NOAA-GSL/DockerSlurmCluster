@@ -5,5 +5,6 @@ sudo sed -i "s/REPLACE_IT/CPUs=${SLURM_CPUS_ON_NODE}/g" /etc/slurm-llnl/slurm.co
 
 sudo service munge start
 sudo service slurmctld start
+sudo service ssh start
 
 tail -f /dev/null

@@ -49,3 +49,29 @@ To run a Slurm job:
 ```
 docker exec slurm-frontend srun hostname
 ```
+
+# SSH between Slurm cluster nodes
+
+In some instances it may be useful to have the ability
+to ssh to a given Slurm cluster node. Each container
+runs an ssh service to provide this capability. If
+passwordless ssh access to Slurm nodes is required,
+**NEW** ssh keys will need to be generated after the
+cluster is started. For example:
+```
+docker exec -it slurm-frontend ssh-keygen -t rsa -f /home/admin/.ssh/id_rsa -N ""
+docker exec -it slurm-frontend cp /home/admin/.ssh/id_rsa.pub /home/admin/.ssh/authorized_keys
+```
+This will allow you to (for example) ssh from the
+frontend node to the compute nodes:
+```
+admin@slurmfrontend:~$ ssh slurmnode1
+admin@slurmnode1:~$
+```
+
+## WARNING
+
+***ALWAYS GENERATE NEW KEYS AS SHOWN ABOVE*** every
+time a cluster is started. And **NEVER**, under any
+circumstances whatsoever, reuse ssh keys from
+previous cluster instances or from any other source.

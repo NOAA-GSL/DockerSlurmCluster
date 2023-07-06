@@ -9,24 +9,34 @@ RUN apt-get update -y && apt-get install -y \
     wget
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get install -y \
     libpmi2-0-dev \
+    openssh-server \
     slurm-client \
     slurmctld \
     slurmd \
     sudo
 
 RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
-    && echo "admin:admin" | chpasswd \
-    && adduser admin sudo \
-    && echo "admin     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+ && echo "admin:admin" | chpasswd \
+ && adduser admin sudo \
+ && echo "admin     ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN mkdir /var/run/sshd \
+ && sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd \
+ && chmod -x /etc/update-motd.d/* \
+ && rm -f /etc/legal
+
+COPY ssh /home/admin/.ssh
+
+RUN chown -R admin:admin /home/admin/.ssh \
+ && chmod -R 700 /home/admin/.ssh
 
 COPY slurm.conf /etc/slurm-llnl/
 COPY cgroup.conf /etc/slurm-llnl/
 COPY docker-entrypoint.sh /etc/slurm-llnl/
 
-EXPOSE 6817 6818 6819 3306 
+EXPOSE 22 6817 6818 6819 3306
 
 WORKDIR /home/admin
 
