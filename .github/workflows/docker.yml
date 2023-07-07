@@ -42,7 +42,7 @@ jobs:
         name: Test ssh access to Slurm compute nodes
         run: |
           docker exec slurm-frontend ssh-keygen -t rsa -f /home/admin/.ssh/id_rsa -N ""
-          docker exec slurm-frontend cp /home/admin/.ssh/id_rsa /home/admin/.ssh/authorized_keys
+          docker exec slurm-frontend cp /home/admin/.ssh/id_rsa.pub /home/admin/.ssh/authorized_keys
           docker exec slurm-frontend timeout 1s ssh slurmnode1 hostname
           docker exec slurm-frontend rm -f ~/.ssh/id_rsa
           docker exec slurm-frontend rm -f ~/.ssh/id_rsa.pub
