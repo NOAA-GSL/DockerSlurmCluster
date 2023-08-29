@@ -6,4 +6,7 @@ sudo sed -i "s/REPLACE_IT/CPUs=${SLURM_CPUS_ON_NODE}/g" /etc/slurm-llnl/slurm.co
 sudo service munge start
 sudo service ssh start
 
+ssh-keygen -t rsa -f /home/admin/.ssh/id_rsa -N ""
+cp /home/admin/.ssh/id_rsa.pub /home/admin/.ssh/authorized_keys
+
 tail -f /dev/null
