@@ -26,18 +26,19 @@ RUN cd /tmp \
  && mk-build-deps -t "apt-get -o Debug::pkgProblemResolver=yes -y" -i debian/control \
  && debuild -b -uc -us \
  && cd .. \
- && dpkg --install slurm-smd_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-client_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-slurmd_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-dev_23.11.7-1_amd64.deb \
+ && ARCH=$(dpkg --print-architecture) \
+ && dpkg --install slurm-smd_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-client_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-slurmd_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-dev_23.11.7-1_${ARCH}.deb \
  && dpkg --install slurm-smd-doc_23.11.7-1_all.deb \
- && dpkg --install slurm-smd-libnss-slurm_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-libpam-slurm-adopt_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-libpmi0_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-libpmi2-0_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-libslurm-perl_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-sackd_23.11.7-1_amd64.deb \
- && dpkg --install slurm-smd-sview_23.11.7-1_amd64.deb
+ && dpkg --install slurm-smd-libnss-slurm_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-libpam-slurm-adopt_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-libpmi0_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-libpmi2-0_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-libslurm-perl_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-sackd_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-sview_23.11.7-1_${ARCH}.deb
 
 RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
  && echo "admin:admin" | chpasswd \
