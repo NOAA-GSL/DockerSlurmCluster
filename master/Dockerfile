@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 RUN apt-get update -y && apt-get install -y \
     build-essential \
@@ -23,7 +23,7 @@ RUN cd /tmp \
  && wget https://download.schedmd.com/slurm/slurm-23.11.7.tar.bz2 \
  && tar -xaf slurm-23.11.7.tar.bz2 \
  && cd slurm-23.11.7 \
- && mk-build-deps -t "apt-get -o Debug::pkgProblemResolver=yes -y" -i debian/control \
+ && mk-build-deps -t "apt-get -y" -i debian/control \
  && debuild -b -uc -us \
  && cd .. \
  && ARCH=$(dpkg --print-architecture) \
