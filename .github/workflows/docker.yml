@@ -7,9 +7,6 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  REGISTRY_IMAGE_FRONTEND: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-frontend
-
 jobs:
 
   docker_build:
