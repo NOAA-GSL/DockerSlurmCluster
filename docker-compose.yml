@@ -10,7 +10,6 @@ services:
         user: admin
         volumes:
                 - shared-vol:/home/admin
-                - ./frontend:/home/admin/foobar
         ports:
                 - 8888:8888
   slurmmaster:
