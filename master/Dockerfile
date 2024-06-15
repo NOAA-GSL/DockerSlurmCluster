@@ -53,15 +53,18 @@ RUN mkdir /var/run/sshd \
  && chmod -x /etc/update-motd.d/* \
  && rm -f /etc/legal
 
+COPY munge.key /etc/munge/
 COPY slurm.conf /etc/slurm/
 COPY cgroup.conf /etc/slurm/
 COPY docker-entrypoint.sh /etc/slurm/
 
-RUN mkdir /var/spool/slurmctld \
+RUN chown munge:munge etc/munge/munge.key \
+ && mkdir /var/spool/slurmctld \
  && chown slurm:slurm /var/spool/slurmctld \
  && chmod 755 /var/spool/slurmctld \
  && chown slurm:slurm /etc/slurm \
  && chown slurm:slurm /etc/slurm/*.conf \
+ && chmod 600 /etc/munge/munge.key \
  && chmod 775 /etc/slurm \
  && chmod 775 /etc/slurm/*.conf
 
