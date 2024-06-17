@@ -3,7 +3,7 @@ services:
         build:
           context: ./frontend
           dockerfile: Dockerfile
-        image: noaagsl/slurm-frontend:latest
+        image: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-frontend:latest
         container_name: slurm-frontend
         shm_size: '4g'
         hostname: slurmfrontend
@@ -16,7 +16,7 @@ services:
         build:
           context: ./master
           dockerfile: Dockerfile
-        image: noaagsl/slurm-master:latest
+        image: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-master:latest
         container_name: slurm-master
         shm_size: '4g'
         hostname: slurmmaster
@@ -33,7 +33,7 @@ services:
         build:
           context: ./node
           dockerfile: Dockerfile
-        image: noaagsl/slurm-node:latest
+        image: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-node:latest
         container_name: slurm-node1
         shm_size: '4g'
         hostname: slurmnode1
@@ -49,7 +49,7 @@ services:
         build:
           context: ./node
           dockerfile: Dockerfile
-        image: noaagsl/slurm-node:latest
+        image: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-node:latest
         container_name: slurm-node2
         shm_size: '4g'
         hostname: slurmnode2
@@ -65,7 +65,7 @@ services:
         build:
           context: ./node
           dockerfile: Dockerfile
-        image: noaagsl/slurm-node:latest
+        image: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-node:latest
         container_name: slurm-node3
         shm_size: '4g'
         hostname: slurmnode3

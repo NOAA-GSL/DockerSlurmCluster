@@ -7,19 +7,21 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  REGISTRY_FRONTEND_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-frontend
+  REGISTRY_MASTER_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-master
+  REGISTRY_NODE_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-node
+
 jobs:
 
-  docker_build:
-    name: Docker Build
+  docker_compose_test:
+    name: Docker Compose Test
     runs-on: ubuntu-20.04
 
     steps:
       -
         name: Checkout Repository
-        uses: actions/checkout@v3
-      -
-        name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: actions/checkout@v4
       -
         name: Build and start containers
         run: docker-compose -f docker-compose.yml up --build -d
@@ -51,49 +53,641 @@ jobs:
         name: Shut down Slurm cluster containers
         run: docker-compose -f docker-compose.yml down
 
+  build-frontend-arm64:
+    runs-on: LinuxARM64-4core-16G-150Gb
+    needs: docker_compose_test
+    timeout-minutes: 360
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      -
+        # Beta ARM runners do not have Docker installed
+        name: Install Docker
+        run: |
+           # Uninstall incompatible packages
+           for pkg in docker.io containerd runc; do sudo apt-get remove $pkg; done
+           # Add Docker's official GPG key:
+           sudo apt-get update
+           sudo apt-get install ca-certificates curl
+           sudo install -m 0755 -d /etc/apt/keyrings
+           sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+           sudo chmod a+r /etc/apt/keyrings/docker.asc
+           # Add the repository to Apt sources:
+           echo \
+             "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+             $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+             sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+           sudo apt-get update -y
+           # Install docker packages
+           sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+           # Allow runner use to run docker without sudo
+           sudo usermod -aG docker $USER
+           sudo apt-get install acl
+           sudo setfacl --modify user:$USER:rw /var/run/docker.sock
+      -
+        name: Test Docker Installation
+        run: docker run hello-world
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
       -
         name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
+        uses: docker/setup-buildx-action@v3
       -
-        name: Login to Docker Hub
-        uses: docker/login-action@v2
+        name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
       -
-        name: Build and push frontend
-        uses: docker/build-push-action@v4
+        name: Prune pre-loaded GHA docker images
+        run: |
+          docker images
+          docker image prune -a -f
+          docker images
+      -
+        name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v5
         with:
           context: ./frontend
-          platforms: linux/amd64,linux/arm64
           file: ./frontend/Dockerfile
-          push: true
-          tags: noaagsl/slurm-frontend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+          platforms: linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-arm64:cache
+          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-arm64:cache,mode=max
+          outputs: type=image,name=${{ env.REGISTRY_FRONTEND_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       -
-        name: Build and push master
-        uses: docker/build-push-action@v4
+        name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      -
+        name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-digests-linux-arm64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build-frontend-amd64:
+    runs-on: ubuntu2204-4c-16g-150ssd
+    needs: docker_compose_test
+    timeout-minutes: 360
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Prune pre-loaded GHA docker images
+        run: |
+          docker images
+          docker image prune -a -f
+          docker images
+      -
+        name: Build spack-stack and push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          platforms: linux/amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-amd64:cache
+          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-amd64:cache,mode=max
+          outputs: type=image,name=${{ env.REGISTRY_FRONTEND_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+      -
+        name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      -
+        name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-digests-linux-amd64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-frontend:
+    runs-on: ubuntu-latest
+    needs:
+      - build-frontend-amd64
+      - build-frontend-arm64
+    steps:
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: frontend-digests-*
+          merge-multiple: true
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_FRONTEND_IMAGE }}@sha256:%s ' *)
+      -
+        name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_FRONTEND_IMAGE }}:${{ steps.meta.outputs.version }}
+
+  build-master-arm64:
+    runs-on: LinuxARM64-4core-16G-150Gb
+    needs: docker_compose_test
+    timeout-minutes: 360
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      -
+        # Beta ARM runners do not have Docker installed
+        name: Install Docker
+        run: |
+           # Uninstall incompatible packages
+           for pkg in docker.io containerd runc; do sudo apt-get remove $pkg; done
+           # Add Docker's official GPG key:
+           sudo apt-get update
+           sudo apt-get install ca-certificates curl
+           sudo install -m 0755 -d /etc/apt/keyrings
+           sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+           sudo chmod a+r /etc/apt/keyrings/docker.asc
+           # Add the repository to Apt sources:
+           echo \
+             "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+             $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+             sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+           sudo apt-get update -y
+           # Install docker packages
+           sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+           # Allow runner use to run docker without sudo
+           sudo usermod -aG docker $USER
+           sudo apt-get install acl
+           sudo setfacl --modify user:$USER:rw /var/run/docker.sock
+      -
+        name: Test Docker Installation
+        run: docker run hello-world
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_MASTER_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Prune pre-loaded GHA docker images
+        run: |
+          docker images
+          docker image prune -a -f
+          docker images
+      -
+        name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v5
         with:
           context: ./master
-          platforms: linux/amd64,linux/arm64
           file: ./master/Dockerfile
-          push: true
-          tags: noaagsl/slurm-master:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+          platforms: linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-arm64:cache
+          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-arm64:cache,mode=max
+          outputs: type=image,name=${{ env.REGISTRY_MASTER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
       -
-        name: Build and push node
-        uses: docker/build-push-action@v4
+        name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      -
+        name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-digests-linux-arm64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build-master-amd64:
+    runs-on: ubuntu2204-4c-16g-150ssd
+    needs: docker_compose_test
+    timeout-minutes: 360
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_MASTER_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Prune pre-loaded GHA docker images
+        run: |
+          docker images
+          docker image prune -a -f
+          docker images
+      -
+        name: Build spack-stack and push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./master
+          file: ./master/Dockerfile
+          platforms: linux/amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-amd64:cache
+          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-amd64:cache,mode=max
+          outputs: type=image,name=${{ env.REGISTRY_MASTER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+      -
+        name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      -
+        name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-digests-linux-amd64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-master:
+    runs-on: ubuntu-latest
+    needs:
+      - build-master-amd64
+      - build-master-arm64
+    steps:
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: master-digests-*
+          merge-multiple: true
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_MASTER_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_MASTER_IMAGE }}@sha256:%s ' *)
+      -
+        name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_MASTER_IMAGE }}:${{ steps.meta.outputs.version }}
+
+  build-node-arm64:
+    runs-on: LinuxARM64-4core-16G-150Gb
+    needs: docker_compose_test
+    timeout-minutes: 360
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      -
+        # Beta ARM runners do not have Docker installed
+        name: Install Docker
+        run: |
+           # Uninstall incompatible packages
+           for pkg in docker.io containerd runc; do sudo apt-get remove $pkg; done
+           # Add Docker's official GPG key:
+           sudo apt-get update
+           sudo apt-get install ca-certificates curl
+           sudo install -m 0755 -d /etc/apt/keyrings
+           sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+           sudo chmod a+r /etc/apt/keyrings/docker.asc
+           # Add the repository to Apt sources:
+           echo \
+             "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+             $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+             sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+           sudo apt-get update -y
+           # Install docker packages
+           sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+           # Allow runner use to run docker without sudo
+           sudo usermod -aG docker $USER
+           sudo apt-get install acl
+           sudo setfacl --modify user:$USER:rw /var/run/docker.sock
+      -
+        name: Test Docker Installation
+        run: docker run hello-world
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_NODE_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Prune pre-loaded GHA docker images
+        run: |
+          docker images
+          docker image prune -a -f
+          docker images
+      -
+        name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v5
         with:
           context: ./node
-          platforms: linux/amd64,linux/arm64
           file: ./node/Dockerfile
-          push: true
-          tags: noaagsl/slurm-node:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: linux/arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-arm64:cache
+          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-arm64:cache,mode=max
+          outputs: type=image,name=${{ env.REGISTRY_NODE_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+      -
+        name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      -
+        name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-digests-linux-arm64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  build-node-amd64:
+    runs-on: ubuntu2204-4c-16g-150ssd
+    needs: docker_compose_test
+    timeout-minutes: 360
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
+    steps:
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_NODE_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Prune pre-loaded GHA docker images
+        run: |
+          docker images
+          docker image prune -a -f
+          docker images
+      -
+        name: Build spack-stack and push by digest
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./node
+          file: ./node/Dockerfile
+          platforms: linux/amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-amd64:cache
+          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-amd64:cache,mode=max
+          outputs: type=image,name=${{ env.REGISTRY_NODE_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+      -
+        name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      -
+        name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: node-digests-linux-amd64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-node:
+    runs-on: ubuntu-latest
+    needs:
+      - build-node-amd64
+      - build-node-arm64
+    steps:
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: node-digests-*
+          merge-multiple: true
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_NODE_IMAGE }}
+          tags: |
+            type=raw,value=latest
+          flavor: |
+            latest=true
+            prefix=
+            suffix=
+      -
+        name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          logout: false
+      -
+        name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY_NODE_IMAGE }}@sha256:%s ' *)
+      -
+        name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY_NODE_IMAGE }}:${{ steps.meta.outputs.version }}
