@@ -694,27 +694,3 @@ jobs:
         name: Inspect image
         run: |
           docker buildx imagetools inspect ${{ env.REGISTRY_NODE_IMAGE }}:${{ steps.meta.outputs.version }}
-
-#      -
-#        name: Build and push master
-#        uses: docker/build-push-action@v4
-#        with:
-#          context: ./master
-#          platforms: linux/amd64,linux/arm64
-#          file: ./master/Dockerfile
-#          push: true
-#          tags: noaagsl/slurm-master:latest
-#          cache-from: type=gha
-#          cache-to: type=gha,mode=max
-#
-#      -
-#        name: Build and push node
-#        uses: docker/build-push-action@v4
-#        with:
-#          context: ./node
-#          platforms: linux/amd64,linux/arm64
-#          file: ./node/Dockerfile
-#          push: true
-#          tags: noaagsl/slurm-node:latest
-#          cache-from: type=gha
-#          cache-to: type=gha,mode=max
