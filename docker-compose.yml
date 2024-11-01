@@ -22,7 +22,7 @@ services:
         hostname: slurmmaster
         user: admin
         volumes:
-                - shared-vol:/home/admin
+                - shared-vol:/home/admin:nocopy
         environment:
                 - SLURM_CPUS_ON_NODE=8
         ports:
@@ -39,7 +39,7 @@ services:
         hostname: slurmnode1
         user: admin
         volumes:
-                - shared-vol:/home/admin
+                - shared-vol:/home/admin:nocopy
         environment:
                 - SLURM_NODENAME=slurmnode1
                 - SLURM_CPUS_ON_NODE=8
@@ -55,7 +55,7 @@ services:
         hostname: slurmnode2
         user: admin
         volumes:
-                - shared-vol:/home/admin
+                - shared-vol:/home/admin:nocopy
         environment:
                 - SLURM_NODENAME=slurmnode2
                 - SLURM_CPUS_ON_NODE=8
@@ -71,7 +71,7 @@ services:
         hostname: slurmnode3
         user: admin
         volumes:
-                - shared-vol:/home/admin
+                - shared-vol:/home/admin:nocopy
         environment:
                 - SLURM_NODENAME=slurmnode3
                 - SLURM_CPUS_ON_NODE=8
