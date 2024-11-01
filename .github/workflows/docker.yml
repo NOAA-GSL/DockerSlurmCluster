@@ -16,7 +16,7 @@ jobs:
 
   docker_compose_test:
     name: Docker Compose Test
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       -
@@ -24,15 +24,15 @@ jobs:
         uses: actions/checkout@v4
       -
         name: Build and start containers
-        run: docker-compose -f docker-compose.yml up --build -d
+        run: docker compose -f docker-compose.yml up --build -d
 
       -
         name: Check cluster logs
-        run: docker-compose -f docker-compose.yml logs
+        run: docker compose -f docker-compose.yml logs
 
       -
         name: Check status of the cluster containers
-        run: docker-compose -f docker-compose.yml ps
+        run: docker compose -f docker-compose.yml ps
 
       -
         name: Check status of Slurm
@@ -51,7 +51,7 @@ jobs:
 
       -
         name: Shut down Slurm cluster containers
-        run: docker-compose -f docker-compose.yml down
+        run: docker compose -f docker-compose.yml down
 
   build-frontend-arm64:
     runs-on: LinuxARM64-4core-16G-150Gb
