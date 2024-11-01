@@ -1,15 +1,13 @@
 FROM ubuntu:22.04
 
+ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y && apt-get install -y \
     build-essential \
     git \
     mariadb-server \
     munge \
     vim \
-    wget
-    
-ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get install -y \
+    wget \
     devscripts \
     equivs \
     fakeroot \
@@ -17,9 +15,8 @@ RUN apt-get install -y \
     libdbus-1-dev \
     libhwloc-dev \
     openssh-server \
-    sudo
-
-RUN cd /tmp \
+    sudo \
+ && cd /tmp \
  && wget https://download.schedmd.com/slurm/slurm-23.11.7.tar.bz2 \
  && tar -xaf slurm-23.11.7.tar.bz2 \
  && cd slurm-23.11.7 \
@@ -31,14 +28,10 @@ RUN cd /tmp \
  && dpkg --install slurm-smd-client_23.11.7-1_${ARCH}.deb \
  && dpkg --install slurm-smd-slurmd_23.11.7-1_${ARCH}.deb \
  && dpkg --install slurm-smd-dev_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-doc_23.11.7-1_all.deb \
- && dpkg --install slurm-smd-libnss-slurm_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-libpam-slurm-adopt_23.11.7-1_${ARCH}.deb \
  && dpkg --install slurm-smd-libpmi0_23.11.7-1_${ARCH}.deb \
  && dpkg --install slurm-smd-libpmi2-0_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-libslurm-perl_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-sackd_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-sview_23.11.7-1_${ARCH}.deb
+ && rm -rf /tmp/slurm* \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
  && echo "admin:admin" | chpasswd \
