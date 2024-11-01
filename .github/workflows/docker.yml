@@ -16,7 +16,7 @@ jobs:
 
   docker_compose_test:
     name: Docker Compose Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu2204-4c-16g-150ssd
 
     steps:
       -
