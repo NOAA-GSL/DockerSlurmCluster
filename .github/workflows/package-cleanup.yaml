@@ -1,0 +1,88 @@
+name: PackageCleanup
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  cleanup-packages:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      -
+        name: Remove untagged versions of dockerslurmcluster/slurm-frontend
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/slurm-frontend'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/slurm-master
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/slurm-master'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/slurm-node
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/slurm-node'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/frontend-cache-amd64
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/frontend-cache-amd64'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/frontend-cache-arm64
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/frontend-cache-arm64'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/master-cache-amd64
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/master-cache-amd64'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/master-cache-arm64
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/master-cache-arm64'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/node-cache-amd64
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/node-cache-amd64'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
+      -
+        name: Remove untagged versions of dockerslurmcluster/node-cache-arm64
+        uses: actions/delete-package-versions@v5
+        with: 
+          package-name: 'dockerslurmcluster/node-cache-arm64'
+          package-type: 'container'
+          min-versions-to-keep: 0
+          delete-only-untagged-versions: 'true'
