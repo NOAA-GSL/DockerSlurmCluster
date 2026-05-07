@@ -8,6 +8,7 @@ on:
   workflow_dispatch:
 
 env:
+  SLURM_VERSION: 25.11.5
   REGISTRY_FRONTEND_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-frontend
   REGISTRY_MASTER_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-master
   REGISTRY_NODE_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-node
@@ -53,42 +54,31 @@ jobs:
         name: Shut down Slurm cluster containers
         run: docker compose -f docker-compose.yml down
 
+  resolve_versions:
+    name: Resolve Version Tags
+    runs-on: ubuntu-latest
+    outputs:
+      ubuntu_version: ${{ steps.resolve.outputs.ubuntu_version }}
+    steps:
+      -
+        name: Resolve concrete ubuntu:latest version
+        id: resolve
+        run: |
+          UBUNTU_VERSION=$(docker run --rm ubuntu:latest bash -lc '. /etc/os-release && echo "$VERSION_ID"')
+          echo "ubuntu_version=${UBUNTU_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Resolved ubuntu:latest to VERSION_ID=${UBUNTU_VERSION}"
+
   build-frontend-arm64:
-    runs-on: LinuxARM64-4core-16G-150Gb
-    needs: docker_compose_test
+    runs-on: ubuntu-24.04-arm
+    needs:
+      - docker_compose_test
+      - resolve_versions
     timeout-minutes: 360
     permissions:
       packages: write
       contents: read
       id-token: write
     steps:
-      -
-        # Beta ARM runners do not have Docker installed
-        name: Install Docker
-        run: |
-           # Uninstall incompatible packages
-           for pkg in docker.io containerd runc; do sudo apt-get remove $pkg; done
-           # Add Docker's official GPG key:
-           sudo apt-get update
-           sudo apt-get install ca-certificates curl
-           sudo install -m 0755 -d /etc/apt/keyrings
-           sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-           sudo chmod a+r /etc/apt/keyrings/docker.asc
-           # Add the repository to Apt sources:
-           echo \
-             "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-             $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-             sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-           sudo apt-get update -y
-           # Install docker packages
-           sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-           # Allow runner use to run docker without sudo
-           sudo usermod -aG docker $USER
-           sudo apt-get install acl
-           sudo setfacl --modify user:$USER:rw /var/run/docker.sock
-      -
-        name: Test Docker Installation
-        run: docker run hello-world
       -
         name: Checkout repository
         uses: actions/checkout@v4
@@ -100,6 +90,7 @@ jobs:
           images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -149,8 +140,10 @@ jobs:
           retention-days: 1
 
   build-frontend-amd64:
-    runs-on: ubuntu2204-4c-16g-150ssd
-    needs: docker_compose_test
+    runs-on: ubuntu-latest
+    needs:
+      - docker_compose_test
+      - resolve_versions
     timeout-minutes: 360
     permissions:
       packages: write
@@ -168,6 +161,7 @@ jobs:
           images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -221,6 +215,7 @@ jobs:
     needs:
       - build-frontend-amd64
       - build-frontend-arm64
+      - resolve_versions
     steps:
       -
         name: Checkout repository
@@ -243,6 +238,7 @@ jobs:
           images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -267,41 +263,16 @@ jobs:
           docker buildx imagetools inspect ${{ env.REGISTRY_FRONTEND_IMAGE }}:${{ steps.meta.outputs.version }}
 
   build-master-arm64:
-    runs-on: LinuxARM64-4core-16G-150Gb
-    needs: docker_compose_test
+    runs-on: ubuntu-24.04-arm
+    needs:
+      - docker_compose_test
+      - resolve_versions
     timeout-minutes: 360
     permissions:
       packages: write
       contents: read
       id-token: write
     steps:
-      -
-        # Beta ARM runners do not have Docker installed
-        name: Install Docker
-        run: |
-           # Uninstall incompatible packages
-           for pkg in docker.io containerd runc; do sudo apt-get remove $pkg; done
-           # Add Docker's official GPG key:
-           sudo apt-get update
-           sudo apt-get install ca-certificates curl
-           sudo install -m 0755 -d /etc/apt/keyrings
-           sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-           sudo chmod a+r /etc/apt/keyrings/docker.asc
-           # Add the repository to Apt sources:
-           echo \
-             "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-             $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-             sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-           sudo apt-get update -y
-           # Install docker packages
-           sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-           # Allow runner use to run docker without sudo
-           sudo usermod -aG docker $USER
-           sudo apt-get install acl
-           sudo setfacl --modify user:$USER:rw /var/run/docker.sock
-      -
-        name: Test Docker Installation
-        run: docker run hello-world
       -
         name: Checkout repository
         uses: actions/checkout@v4
@@ -313,6 +284,7 @@ jobs:
           images: ${{ env.REGISTRY_MASTER_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -362,8 +334,10 @@ jobs:
           retention-days: 1
 
   build-master-amd64:
-    runs-on: ubuntu2204-4c-16g-150ssd
-    needs: docker_compose_test
+    runs-on: ubuntu-latest
+    needs:
+      - docker_compose_test
+      - resolve_versions
     timeout-minutes: 360
     permissions:
       packages: write
@@ -381,6 +355,7 @@ jobs:
           images: ${{ env.REGISTRY_MASTER_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -434,6 +409,7 @@ jobs:
     needs:
       - build-master-amd64
       - build-master-arm64
+      - resolve_versions
     steps:
       -
         name: Checkout repository
@@ -456,6 +432,7 @@ jobs:
           images: ${{ env.REGISTRY_MASTER_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -480,41 +457,16 @@ jobs:
           docker buildx imagetools inspect ${{ env.REGISTRY_MASTER_IMAGE }}:${{ steps.meta.outputs.version }}
 
   build-node-arm64:
-    runs-on: LinuxARM64-4core-16G-150Gb
-    needs: docker_compose_test
+    runs-on: ubuntu-24.04-arm
+    needs:
+      - docker_compose_test
+      - resolve_versions
     timeout-minutes: 360
     permissions:
       packages: write
       contents: read
       id-token: write
     steps:
-      -
-        # Beta ARM runners do not have Docker installed
-        name: Install Docker
-        run: |
-           # Uninstall incompatible packages
-           for pkg in docker.io containerd runc; do sudo apt-get remove $pkg; done
-           # Add Docker's official GPG key:
-           sudo apt-get update
-           sudo apt-get install ca-certificates curl
-           sudo install -m 0755 -d /etc/apt/keyrings
-           sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-           sudo chmod a+r /etc/apt/keyrings/docker.asc
-           # Add the repository to Apt sources:
-           echo \
-             "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-             $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-             sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-           sudo apt-get update -y
-           # Install docker packages
-           sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-           # Allow runner use to run docker without sudo
-           sudo usermod -aG docker $USER
-           sudo apt-get install acl
-           sudo setfacl --modify user:$USER:rw /var/run/docker.sock
-      -
-        name: Test Docker Installation
-        run: docker run hello-world
       -
         name: Checkout repository
         uses: actions/checkout@v4
@@ -526,6 +478,7 @@ jobs:
           images: ${{ env.REGISTRY_NODE_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -575,8 +528,10 @@ jobs:
           retention-days: 1
 
   build-node-amd64:
-    runs-on: ubuntu2204-4c-16g-150ssd
-    needs: docker_compose_test
+    runs-on: ubuntu-latest
+    needs:
+      - docker_compose_test
+      - resolve_versions
     timeout-minutes: 360
     permissions:
       packages: write
@@ -594,6 +549,7 @@ jobs:
           images: ${{ env.REGISTRY_NODE_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
@@ -647,6 +603,7 @@ jobs:
     needs:
       - build-node-amd64
       - build-node-arm64
+      - resolve_versions
     steps:
       -
         name: Checkout repository
@@ -669,6 +626,7 @@ jobs:
           images: ${{ env.REGISTRY_NODE_IMAGE }}
           tags: |
             type=raw,value=latest
+            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
             latest=true
             prefix=
