@@ -3,6 +3,8 @@
 # Slurm Cluster in Ubuntu Docker Images Using Docker Compose
 This is an installation of a Slurm cluster inside Docker.
 
+The container images now track `ubuntu:latest` and build Slurm `25.11.5` from source during image creation.
+
 This is an adaptation of the work done by Rodrigo Ancavil del Pino:
 
 https://medium.com/analytics-vidhya/slurm-cluster-with-docker-9f242deee601

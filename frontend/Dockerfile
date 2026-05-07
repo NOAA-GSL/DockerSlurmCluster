@@ -1,5 +1,6 @@
-FROM ubuntu:22.04
+FROM ubuntu:latest
 
+ARG SLURM_VERSION=25.11.5
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update -y && apt-get install -y \
     build-essential \
@@ -17,18 +18,18 @@ RUN apt-get update -y && apt-get install -y \
     openssh-server \
     sudo \
  && cd /tmp \
- && wget https://download.schedmd.com/slurm/slurm-23.11.7.tar.bz2 \
- && tar -xaf slurm-23.11.7.tar.bz2 \
- && cd slurm-23.11.7 \
+ && wget https://download.schedmd.com/slurm/slurm-${SLURM_VERSION}.tar.bz2 \
+ && tar -xaf slurm-${SLURM_VERSION}.tar.bz2 \
+ && cd slurm-${SLURM_VERSION} \
  && mk-build-deps -t "apt-get -y" -i debian/control \
  && debuild -b -uc -us \
  && cd .. \
  && ARCH=$(dpkg --print-architecture) \
- && dpkg --install slurm-smd_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-client_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-dev_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-libpmi0_23.11.7-1_${ARCH}.deb \
- && dpkg --install slurm-smd-libpmi2-0_23.11.7-1_${ARCH}.deb \
+ && dpkg --install slurm-smd_${SLURM_VERSION}-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-client_${SLURM_VERSION}-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-dev_${SLURM_VERSION}-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-libpmi0_${SLURM_VERSION}-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-libpmi2-0_${SLURM_VERSION}-1_${ARCH}.deb \
  && rm -rf /tmp/slurm* \
  && rm -rf /var/lib/apt/lists/*
 
@@ -40,7 +41,7 @@ RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
 RUN useradd -m slurm -s /usr/bin/bash -d /home/slurm \
  && echo "slurm:slurm" | chpasswd
 
-RUN mkdir /var/run/sshd \
+RUN mkdir -p /var/run/sshd \
  && sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd \
  && chmod -x /etc/update-motd.d/* \
  && rm -f /etc/legal
