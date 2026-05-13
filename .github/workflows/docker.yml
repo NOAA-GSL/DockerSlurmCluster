@@ -216,6 +216,10 @@ jobs:
       - build-frontend-amd64
       - build-frontend-arm64
       - resolve_versions
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
     steps:
       -
         name: Checkout repository
@@ -410,6 +414,10 @@ jobs:
       - build-master-amd64
       - build-master-arm64
       - resolve_versions
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
     steps:
       -
         name: Checkout repository
@@ -604,6 +612,10 @@ jobs:
       - build-node-amd64
       - build-node-arm64
       - resolve_versions
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
     steps:
       -
         name: Checkout repository
