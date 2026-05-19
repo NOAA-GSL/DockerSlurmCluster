@@ -32,7 +32,8 @@ RUN apt-get update -y && apt-get install -y \
  && dpkg --install slurm-smd-libpmi0_${SLURM_VERSION}-1_${ARCH}.deb \
  && dpkg --install slurm-smd-libpmi2-0_${SLURM_VERSION}-1_${ARCH}.deb \
  && rm -rf /tmp/slurm* \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -f /etc/ssh/ssh_host_*
 
 RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
  && echo "admin:admin" | chpasswd \
@@ -45,8 +46,7 @@ RUN useradd -m slurm -s /usr/bin/bash -d /home/slurm \
 RUN mkdir -p /var/run/sshd \
  && sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd \
  && chmod -x /etc/update-motd.d/* \
- && rm -f /etc/legal \
- && rm -f /etc/ssh/ssh_host_*
+ && rm -f /etc/legal
 
 COPY munge.key /etc/munge/
 COPY slurm.conf /etc/slurm/
