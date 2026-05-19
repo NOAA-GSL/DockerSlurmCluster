@@ -1,0 +1,26 @@
+vulnerabilities:
+  # /usr/bin/pebble is Canonical's init/service manager binary shipped as part of
+  # the ubuntu:26.04 base image.  Its Go stdlib is compiled into the binary by
+  # Canonical; we cannot upgrade it without replacing the base image.  These
+  # findings will be resolved when Canonical rebuilds pebble against a patched
+  # Go toolchain.  Track: https://bugs.launchpad.net/ubuntu/+source/pebble
+  - id: CVE-2026-33811
+    paths:
+      - usr/bin/pebble
+    statement: "Canonical pebble base-image binary; not user-controlled."
+  - id: CVE-2026-33814
+    paths:
+      - usr/bin/pebble
+    statement: "Canonical pebble base-image binary; not user-controlled."
+  - id: CVE-2026-39820
+    paths:
+      - usr/bin/pebble
+    statement: "Canonical pebble base-image binary; not user-controlled."
+  - id: CVE-2026-39836
+    paths:
+      - usr/bin/pebble
+    statement: "Canonical pebble base-image binary; not user-controlled."
+  - id: CVE-2026-42499
+    paths:
+      - usr/bin/pebble
+    statement: "Canonical pebble base-image binary; not user-controlled."
