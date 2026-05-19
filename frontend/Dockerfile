@@ -1,4 +1,5 @@
-FROM ubuntu:latest
+ARG UBUNTU_BASE=ubuntu:26.04@sha256:f3d28607ddd78734bb7f71f117f3c6706c666b8b76cbff7c9ff6e5718d46ff64
+FROM ${UBUNTU_BASE}
 
 ARG SLURM_VERSION=25.11.5
 ARG DEBIAN_FRONTEND=noninteractive
@@ -31,7 +32,8 @@ RUN apt-get update -y && apt-get install -y \
  && dpkg --install slurm-smd-libpmi0_${SLURM_VERSION}-1_${ARCH}.deb \
  && dpkg --install slurm-smd-libpmi2-0_${SLURM_VERSION}-1_${ARCH}.deb \
  && rm -rf /tmp/slurm* \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -f /etc/ssh/ssh_host_*
 
 RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
  && echo "admin:admin" | chpasswd \
@@ -67,7 +69,7 @@ WORKDIR /home/admin
 
 EXPOSE 22 8888
 
-ENV USER admin
-ENV SHELL bash
+ENV USER=admin
+ENV SHELL=bash
 
 ENTRYPOINT ["/etc/slurm/docker-entrypoint.sh"]

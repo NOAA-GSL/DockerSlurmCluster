@@ -1,0 +1,67 @@
+name: Refresh Ubuntu Base Digest
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh-ubuntu-digest:
+    runs-on: ubuntu-latest
+    steps:
+      -
+        name: Checkout repository
+        uses: actions/checkout@v4
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      -
+        name: Resolve latest digest for ubuntu:26.04
+        id: resolve
+        run: |
+          set -euo pipefail
+          DIGEST=$(docker buildx imagetools inspect ubuntu:26.04 --format '{{.Digest}}')
+          if [[ -z "${DIGEST}" ]]; then
+            echo "Unable to resolve digest for ubuntu:26.04"
+            exit 1
+          fi
+          FULL_REF="ubuntu:26.04@${DIGEST}"
+          echo "full_ref=${FULL_REF}" >> "$GITHUB_OUTPUT"
+      -
+        name: Update pinned digest in Dockerfiles and README
+        id: update
+        run: |
+          set -euo pipefail
+          FULL_REF='${{ steps.resolve.outputs.full_ref }}'
+
+          for dockerfile in frontend/Dockerfile master/Dockerfile node/Dockerfile; do
+            sed -i "s|^ARG UBUNTU_BASE=.*$|ARG UBUNTU_BASE=${FULL_REF}|g" "${dockerfile}"
+          done
+
+          sed -i "s|^Pinned Ubuntu base image: .*|Pinned Ubuntu base image: ${FULL_REF}|g" README.md
+
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      -
+        name: Create pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/refresh-ubuntu-base-digest
+          commit-message: "chore: refresh ubuntu 26.04 base digest"
+          title: "chore: refresh ubuntu 26.04 base digest"
+          body: |
+            Automated update of the pinned ubuntu:26.04 digest used by all Dockerfiles.
+
+            - Updates ARG UBUNTU_BASE in frontend/master/node Dockerfiles
+            - Updates documentation in README.md
+          labels: |
+            dependencies
+            security
