@@ -13,15 +13,56 @@ env:
 
 jobs:
 
-  docker_compose_test:
-    name: Compose Test (ubuntu-${{ matrix.ubuntu }}, ${{ matrix.runner }})
-    runs-on: ${{ matrix.runner }}
+  docker_compose_test_amd64:
+    name: Compose Test (ubuntu-${{ matrix.ubuntu }}, amd64)
+    runs-on: ubuntu2204-4c-16g-150ssd
     strategy:
       fail-fast: false
       matrix:
         ubuntu: ['24.04', '26.04']
-        runner: [ubuntu2204-4c-16g-150ssd, LinuxARM64-4core-16G-150Gb]
     steps:
+      -
+        name: Checkout Repository
+        uses: actions/checkout@v4
+      -
+        name: Build and start containers
+        run: UBUNTU_BASE=ubuntu:${{ matrix.ubuntu }} docker compose -f docker-compose.yml up --build --pull never -d
+      -
+        name: Check cluster logs
+        run: docker compose -f docker-compose.yml logs
+      -
+        name: Check status of the cluster containers
+        run: docker compose -f docker-compose.yml ps
+      -
+        name: Check status of Slurm
+        run: docker exec slurm-frontend sinfo
+      -
+        name: Run a Slurm job
+        run: docker exec slurm-frontend srun hostname
+      -
+        name: Test ssh access to Slurm compute nodes
+        run: |
+          docker exec slurm-frontend timeout 1s ssh slurmnode1 hostname
+          docker exec slurm-frontend timeout 1s ssh slurmnode2 hostname
+          docker exec slurm-frontend timeout 1s ssh slurmnode3 hostname
+      -
+        name: Shut down Slurm cluster containers
+        run: docker compose -f docker-compose.yml down
+
+  docker_compose_test_arm64:
+    name: Compose Test (ubuntu-${{ matrix.ubuntu }}, arm64)
+    runs-on: LinuxARM64-4core-16G-150Gb
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: ['24.04', '26.04']
+    steps:
+      -
+        name: Install Docker
+        run: |
+          curl -fsSL https://get.docker.com | sudo sh
+          sudo usermod -aG docker $USER
+          sudo systemctl start docker
       -
         name: Checkout Repository
         uses: actions/checkout@v4
@@ -53,7 +94,7 @@ jobs:
   build:
     name: Build ${{ matrix.container }} (ubuntu-${{ matrix.ubuntu }}, ${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
-    needs: docker_compose_test
+    needs: [docker_compose_test_amd64, docker_compose_test_arm64]
     timeout-minutes: 360
     permissions:
       packages: write
