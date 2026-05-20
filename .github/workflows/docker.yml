@@ -9,76 +9,69 @@ on:
 
 env:
   SLURM_VERSION: 25.11.5
-  UBUNTU_BASE_TAG: 26.04
-  REGISTRY_FRONTEND_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-frontend
-  REGISTRY_MASTER_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-master
-  REGISTRY_NODE_IMAGE: ghcr.io/noaa-gsl/dockerslurmcluster/slurm-node
+  REGISTRY: ghcr.io/noaa-gsl/dockerslurmcluster
 
 jobs:
 
   docker_compose_test:
-    name: Docker Compose Test
-    runs-on: ubuntu2204-4c-16g-150ssd
-
+    name: Compose Test (ubuntu-${{ matrix.ubuntu }}, ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: ['24.04', '26.04']
+        runner: [ubuntu2204-4c-16g-150ssd, LinuxARM64-4core-16G-150Gb]
     steps:
       -
         name: Checkout Repository
         uses: actions/checkout@v4
       -
         name: Build and start containers
-        run: docker compose -f docker-compose.yml up --build -d
-
+        run: UBUNTU_BASE=ubuntu:${{ matrix.ubuntu }} docker compose -f docker-compose.yml up --build --pull never -d
       -
         name: Check cluster logs
         run: docker compose -f docker-compose.yml logs
-
       -
         name: Check status of the cluster containers
         run: docker compose -f docker-compose.yml ps
-
       -
         name: Check status of Slurm
         run: docker exec slurm-frontend sinfo
-
       -
         name: Run a Slurm job
         run: docker exec slurm-frontend srun hostname
-
       -
         name: Test ssh access to Slurm compute nodes
         run: |
           docker exec slurm-frontend timeout 1s ssh slurmnode1 hostname
           docker exec slurm-frontend timeout 1s ssh slurmnode2 hostname
           docker exec slurm-frontend timeout 1s ssh slurmnode3 hostname
-
       -
         name: Shut down Slurm cluster containers
         run: docker compose -f docker-compose.yml down
 
-  resolve_versions:
-    name: Resolve Version Tags
-    runs-on: ubuntu-latest
-    outputs:
-      ubuntu_version: ${{ steps.resolve.outputs.ubuntu_version }}
-    steps:
-      -
-        name: Resolve concrete ubuntu base version
-        id: resolve
-        run: |
-          UBUNTU_VERSION=$(docker run --rm ubuntu:${{ env.UBUNTU_BASE_TAG }} bash -lc '. /etc/os-release && echo "$VERSION_ID"')
-          echo "ubuntu_version=${UBUNTU_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Resolved ubuntu:${{ env.UBUNTU_BASE_TAG }} to VERSION_ID=${UBUNTU_VERSION}"
-
-  build-frontend-arm64:
-    runs-on: ubuntu-24.04-arm
-    needs:
-      - docker_compose_test
-      - resolve_versions
+  build:
+    name: Build ${{ matrix.container }} (ubuntu-${{ matrix.ubuntu }}, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    needs: docker_compose_test
     timeout-minutes: 360
     permissions:
       packages: write
       contents: read
       id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        container: [frontend, master, node]
+        ubuntu: ['24.04', '26.04']
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            platform: linux/amd64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            platform: linux/arm64
+        arch: [amd64, arm64]
     steps:
       -
         name: Checkout repository
@@ -88,14 +81,11 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
+          images: ${{ env.REGISTRY }}/slurm-${{ matrix.container }}
           tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
+            type=raw,value=ubuntu-${{ matrix.ubuntu }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
-            latest=true
-            prefix=
-            suffix=
+            latest=false
       -
         name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -118,13 +108,14 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          platforms: linux/arm64
+          context: ./${{ matrix.container }}
+          file: ./${{ matrix.container }}/Dockerfile
+          build-args: UBUNTU_BASE=ubuntu:${{ matrix.ubuntu }}
+          platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-arm64:cache
-          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-arm64:cache,mode=max
-          outputs: type=image,name=${{ env.REGISTRY_FRONTEND_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ matrix.container }}-cache-${{ matrix.ubuntu }}-${{ matrix.arch }}:cache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ matrix.container }}-cache-${{ matrix.ubuntu }}-${{ matrix.arch }}:cache,mode=max
+          outputs: type=image,name=${{ env.REGISTRY }}/slurm-${{ matrix.container }},push-by-digest=true,name-canonical=true,push=true
       -
         name: Export digest
         run: |
@@ -135,92 +126,24 @@ jobs:
         name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-digests-linux-arm64
+          name: ${{ matrix.container }}-${{ matrix.ubuntu }}-digests-${{ matrix.arch }}
           path: /tmp/digests/*
           if-no-files-found: error
           retention-days: 1
 
-  build-frontend-amd64:
+  merge:
+    name: Merge ${{ matrix.container }} (ubuntu-${{ matrix.ubuntu }})
     runs-on: ubuntu-latest
-    needs:
-      - docker_compose_test
-      - resolve_versions
-    timeout-minutes: 360
+    needs: build
     permissions:
       packages: write
       contents: read
       id-token: write
-    steps:
-      -
-        name: Checkout repository
-        uses: actions/checkout@v4
-      -
-        name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
-      -
-        name: Prune pre-loaded GHA docker images
-        run: |
-          docker images
-          docker image prune -a -f
-          docker images
-      -
-        name: Build spack-stack and push by digest
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          platforms: linux/amd64
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-amd64:cache
-          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/frontend-cache-amd64:cache,mode=max
-          outputs: type=image,name=${{ env.REGISTRY_FRONTEND_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-      -
-        name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-      -
-        name: Upload digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-digests-linux-amd64
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge-frontend:
-    runs-on: ubuntu-latest
-    needs:
-      - build-frontend-amd64
-      - build-frontend-arm64
-      - resolve_versions
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        container: [frontend, master, node]
+        ubuntu: ['24.04', '26.04']
     steps:
       -
         name: Checkout repository
@@ -230,7 +153,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: /tmp/digests
-          pattern: frontend-digests-*
+          pattern: ${{ matrix.container }}-${{ matrix.ubuntu }}-digests-*
           merge-multiple: true
       -
         name: Set up Docker Buildx
@@ -240,14 +163,11 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY_FRONTEND_IMAGE }}
+          images: ${{ env.REGISTRY }}/slurm-${{ matrix.container }}
           tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
+            type=raw,value=ubuntu-${{ matrix.ubuntu }}-slurm-${{ env.SLURM_VERSION }}
           flavor: |
-            latest=true
-            prefix=
-            suffix=
+            latest=false
       -
         name: Login to GHCR
         uses: docker/login-action@v3
@@ -261,425 +181,24 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_FRONTEND_IMAGE }}@sha256:%s ' *)
+            $(printf '${{ env.REGISTRY }}/slurm-${{ matrix.container }}@sha256:%s ' *)
       -
         name: Inspect image
         run: |
-          docker buildx imagetools inspect ${{ env.REGISTRY_FRONTEND_IMAGE }}:${{ steps.meta.outputs.version }}
-
-  build-master-arm64:
-    runs-on: ubuntu-24.04-arm
-    needs:
-      - docker_compose_test
-      - resolve_versions
-    timeout-minutes: 360
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
-    steps:
-      -
-        name: Checkout repository
-        uses: actions/checkout@v4
-      -
-        name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY_MASTER_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
-      -
-        name: Prune pre-loaded GHA docker images
-        run: |
-          docker images
-          docker image prune -a -f
-          docker images
-      -
-        name: Build and push by digest
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: ./master
-          file: ./master/Dockerfile
-          platforms: linux/arm64
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-arm64:cache
-          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-arm64:cache,mode=max
-          outputs: type=image,name=${{ env.REGISTRY_MASTER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-      -
-        name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-      -
-        name: Upload digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: master-digests-linux-arm64
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  build-master-amd64:
-    runs-on: ubuntu-latest
-    needs:
-      - docker_compose_test
-      - resolve_versions
-    timeout-minutes: 360
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
-    steps:
-      -
-        name: Checkout repository
-        uses: actions/checkout@v4
-      -
-        name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY_MASTER_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
-      -
-        name: Prune pre-loaded GHA docker images
-        run: |
-          docker images
-          docker image prune -a -f
-          docker images
-      -
-        name: Build spack-stack and push by digest
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: ./master
-          file: ./master/Dockerfile
-          platforms: linux/amd64
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-amd64:cache
-          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/master-cache-amd64:cache,mode=max
-          outputs: type=image,name=${{ env.REGISTRY_MASTER_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-      -
-        name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-      -
-        name: Upload digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: master-digests-linux-amd64
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge-master:
-    runs-on: ubuntu-latest
-    needs:
-      - build-master-amd64
-      - build-master-arm64
-      - resolve_versions
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
-    steps:
-      -
-        name: Checkout repository
-        uses: actions/checkout@v4
-      -
-        name: Download digests
-        uses: actions/download-artifact@v4
-        with:
-          path: /tmp/digests
-          pattern: master-digests-*
-          merge-multiple: true
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY_MASTER_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-      -
-        name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
-      -
-        name: Create manifest list and push
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_MASTER_IMAGE }}@sha256:%s ' *)
-      -
-        name: Inspect image
-        run: |
-          docker buildx imagetools inspect ${{ env.REGISTRY_MASTER_IMAGE }}:${{ steps.meta.outputs.version }}
-
-  build-node-arm64:
-    runs-on: ubuntu-24.04-arm
-    needs:
-      - docker_compose_test
-      - resolve_versions
-    timeout-minutes: 360
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
-    steps:
-      -
-        name: Checkout repository
-        uses: actions/checkout@v4
-      -
-        name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY_NODE_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
-      -
-        name: Prune pre-loaded GHA docker images
-        run: |
-          docker images
-          docker image prune -a -f
-          docker images
-      -
-        name: Build and push by digest
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: ./node
-          file: ./node/Dockerfile
-          platforms: linux/arm64
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-arm64:cache
-          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-arm64:cache,mode=max
-          outputs: type=image,name=${{ env.REGISTRY_NODE_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-      -
-        name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-      -
-        name: Upload digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-digests-linux-arm64
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  build-node-amd64:
-    runs-on: ubuntu-latest
-    needs:
-      - docker_compose_test
-      - resolve_versions
-    timeout-minutes: 360
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
-    steps:
-      -
-        name: Checkout repository
-        uses: actions/checkout@v4
-      -
-        name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY_NODE_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
-      -
-        name: Prune pre-loaded GHA docker images
-        run: |
-          docker images
-          docker image prune -a -f
-          docker images
-      -
-        name: Build spack-stack and push by digest
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: ./node
-          file: ./node/Dockerfile
-          platforms: linux/amd64
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-amd64:cache
-          cache-to: type=registry,ref=ghcr.io/noaa-gsl/dockerslurmcluster/node-cache-amd64:cache,mode=max
-          outputs: type=image,name=${{ env.REGISTRY_NODE_IMAGE }},push-by-digest=true,name-canonical=true,push=true
-      -
-        name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-      -
-        name: Upload digest
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-digests-linux-amd64
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge-node:
-    runs-on: ubuntu-latest
-    needs:
-      - build-node-amd64
-      - build-node-arm64
-      - resolve_versions
-    permissions:
-      packages: write
-      contents: read
-      id-token: write
-    steps:
-      -
-        name: Checkout repository
-        uses: actions/checkout@v4
-      -
-        name: Download digests
-        uses: actions/download-artifact@v4
-        with:
-          path: /tmp/digests
-          pattern: node-digests-*
-          merge-multiple: true
-      -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      -
-        name: Docker meta
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY_NODE_IMAGE }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=ubuntu-${{ needs.resolve_versions.outputs.ubuntu_version }}-slurm-${{ env.SLURM_VERSION }}
-          flavor: |
-            latest=true
-            prefix=
-            suffix=
-      -
-        name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          logout: false
-      -
-        name: Create manifest list and push
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY_NODE_IMAGE }}@sha256:%s ' *)
-      -
-        name: Inspect image
-        run: |
-          docker buildx imagetools inspect ${{ env.REGISTRY_NODE_IMAGE }}:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/slurm-${{ matrix.container }}:${{ steps.meta.outputs.version }}
 
   scan-images:
-    name: Scan images for fixable High/Critical CVEs
+    name: Scan ${{ matrix.container }} (ubuntu-${{ matrix.ubuntu }})
     runs-on: ubuntu-latest
-    needs:
-      - merge-frontend
-      - merge-master
-      - merge-node
+    needs: merge
     permissions:
       packages: read
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        image:
-          - ghcr.io/noaa-gsl/dockerslurmcluster/slurm-frontend:latest
-          - ghcr.io/noaa-gsl/dockerslurmcluster/slurm-master:latest
-          - ghcr.io/noaa-gsl/dockerslurmcluster/slurm-node:latest
+        container: [frontend, master, node]
+        ubuntu: ['24.04', '26.04']
     steps:
       -
         name: Checkout repository
@@ -695,7 +214,7 @@ jobs:
         name: Run Trivy scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ matrix.image }}
+          image-ref: ${{ env.REGISTRY }}/slurm-${{ matrix.container }}:ubuntu-${{ matrix.ubuntu }}-slurm-${{ env.SLURM_VERSION }}
           format: table
           vuln-type: os,library
           severity: HIGH,CRITICAL
