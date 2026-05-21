@@ -58,36 +58,6 @@ jobs:
         ubuntu: ['24.04', '26.04']
     steps:
       -
-        name: Install Docker (official apt method)
-        run: |
-          set -euxo pipefail
-          # Remove any conflicting packages
-          for pkg in docker.io containerd runc; do sudo apt-get remove -y $pkg || true; done
-          # Add Docker's official GPG key
-          sudo apt-get update
-          sudo apt-get install -y ca-certificates curl gnupg lsb-release apt-transport-https
-          sudo install -m 0755 -d /etc/apt/keyrings
-          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-          sudo chmod a+r /etc/apt/keyrings/docker.asc
-          # Add Docker apt repo
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-          sudo apt-get update -y
-          # Install Docker, Buildx, Compose
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-          # Allow runner user to access docker
-          sudo usermod -aG docker $USER
-          sudo apt-get install -y acl
-          sudo setfacl --modify user:$USER:rw /var/run/docker.sock || true
-          # Start Docker daemon if not running
-          if ! pgrep dockerd > /dev/null; then
-            (sudo dockerd > /tmp/dockerd.log 2>&1 &)
-            sleep 5
-          fi
-          docker version
-          docker info
-          docker compose version
-      -
         name: Checkout Repository
         uses: actions/checkout@v4
       -
