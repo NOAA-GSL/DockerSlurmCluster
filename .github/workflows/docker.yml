@@ -15,7 +15,7 @@ jobs:
 
   docker_compose_test_amd64:
     name: Compose Test (ubuntu-${{ matrix.ubuntu }}, amd64)
-    runs-on: ubuntu2204-4c-16g-150ssd
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -51,7 +51,7 @@ jobs:
 
   docker_compose_test_arm64:
     name: Compose Test (ubuntu-${{ matrix.ubuntu }}, arm64)
-    runs-on: LinuxARM64-4core-16G-150Gb
+    runs-on: ubuntu-24.04-arm
     strategy:
       fail-fast: false
       matrix:
