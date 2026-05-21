@@ -11,6 +11,12 @@ x-node-common: &node-common
       condition: service_started
     slurmfrontend:
       condition: service_healthy
+  healthcheck:
+  test: ["CMD", "ssh", "-o", "StrictHostKeyChecking=no", "admin@localhost", "hostname"]
+  interval: 2s
+  timeout: 2s
+  retries: 10
+  start_period: 5s
 
 services:
   slurmfrontend:
