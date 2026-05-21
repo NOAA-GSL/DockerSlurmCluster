@@ -10,6 +10,7 @@ on:
 env:
   SLURM_VERSION: 25.11.5
   REGISTRY: ghcr.io/noaa-gsl/dockerslurmcluster
+  LATEST_UBUNTU: '26.04'
 
 jobs:
 
@@ -19,7 +20,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ubuntu: ['24.04', '26.04']
+        ubuntu: &ubuntu_versions
+          - '24.04'
+          - '26.04'
     steps:
       -
         name: Checkout Repository
@@ -55,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ubuntu: ['24.04', '26.04']
+        ubuntu: *ubuntu_versions
     steps:
       -
         name: Checkout Repository
@@ -98,7 +101,7 @@ jobs:
       fail-fast: false
       matrix:
         container: [frontend, master, node]
-        ubuntu: ['24.04', '26.04']
+        ubuntu: *ubuntu_versions
         include:
           - arch: amd64
             runner: ubuntu-latest
@@ -119,6 +122,7 @@ jobs:
           images: ${{ env.REGISTRY }}/slurm-${{ matrix.container }}
           tags: |
             type=raw,value=ubuntu-${{ matrix.ubuntu }}-slurm-${{ env.SLURM_VERSION }}
+            ${{ matrix.ubuntu == env.LATEST_UBUNTU && 'type=raw,value=latest' || '' }}
           flavor: |
             latest=false
       -
@@ -178,7 +182,7 @@ jobs:
       fail-fast: false
       matrix:
         container: [frontend, master, node]
-        ubuntu: ['24.04', '26.04']
+        ubuntu: *ubuntu_versions
     steps:
       -
         name: Checkout repository
@@ -201,6 +205,7 @@ jobs:
           images: ${{ env.REGISTRY }}/slurm-${{ matrix.container }}
           tags: |
             type=raw,value=ubuntu-${{ matrix.ubuntu }}-slurm-${{ env.SLURM_VERSION }}
+            ${{ matrix.ubuntu == env.LATEST_UBUNTU && 'type=raw,value=latest' || '' }}
           flavor: |
             latest=false
       -
@@ -233,7 +238,7 @@ jobs:
       fail-fast: false
       matrix:
         container: [frontend, master, node]
-        ubuntu: ['24.04', '26.04']
+        ubuntu: *ubuntu_versions
     steps:
       -
         name: Checkout repository
