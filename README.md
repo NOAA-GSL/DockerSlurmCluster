@@ -3,9 +3,7 @@
 # Slurm Cluster in Ubuntu Docker Images Using Docker Compose
 This is an installation of a Slurm cluster inside Docker.
 
-The container images now pin Ubuntu `26.04` by digest and build Slurm `25.11.5` from source during image creation.
-
-Pinned Ubuntu base image: ubuntu:26.04@sha256:f3d28607ddd78734bb7f71f117f3c6706c666b8b76cbff7c9ff6e5718d46ff64
+The container images support Ubuntu `24.04` and `26.04` and build Slurm `25.11.5` from source during image creation. CI builds and publishes images for both Ubuntu versions.
 
 This is an adaptation of the work done by Rodrigo Ancavil del Pino:
 
@@ -54,10 +52,43 @@ To run a Slurm job:
 docker exec slurm-frontend srun hostname
 ```
 
+# Building with Custom Base Images
+
+The cluster supports building with different Ubuntu base images and custom image tags for testing and version management.
+
+## Configurable Variables
+
+Defaults are set in the `.env` file and can be overridden via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `UBUNTU_BASE` | `ubuntu:26.04` | Ubuntu base image for all containers |
+| `IMAGE_TAG` | `latest` | Tag applied to built images |
+| `SLURM_CPUS_ON_NODE` | `8` | CPUs per Slurm node |
+
+## Building with Different Ubuntu Versions
+
+Build with Ubuntu 24.04:
+```bash
+UBUNTU_BASE=ubuntu:24.04 IMAGE_TAG=ubuntu-24.04-slurm-25.11.5 docker compose build
+```
+
+Build with Ubuntu 26.04:
+```bash
+UBUNTU_BASE=ubuntu:26.04 IMAGE_TAG=ubuntu-26.04-slurm-25.11.5 docker compose build
+```
+
+Or edit `.env` directly to change the defaults.
+
+## Running a Specific Build
+
+After building multiple versions, select which to run by setting `IMAGE_TAG`:
+```bash
+IMAGE_TAG=ubuntu-24.04-slurm-25.11.5 docker compose up -d
+```
+
+This allows multiple builds with different base images to coexist locally for testing purposes.
+
 # Security and Image Hygiene
 
-The Dockerfiles are pinned to an immutable Ubuntu 26.04 digest for reproducibility.
-
 The CI workflow performs vulnerability scans against published images and fails on `HIGH`/`CRITICAL` findings that are fixable (`ignore-unfixed: true`).
-
-The `.github/workflows/refresh-ubuntu-digest.yml` workflow runs weekly and opens a pull request when a newer `ubuntu:26.04` digest is available.
