@@ -3,7 +3,7 @@ x-node-common: &node-common
   shm_size: '4g'
   user: admin
   volumes:
-    - shared-vol:/home/admin:nocopy
+    - shared-vol:/home/admin
   environment:
     SLURM_CPUS_ON_NODE: ${SLURM_CPUS_ON_NODE}
   depends_on:
@@ -44,7 +44,7 @@ services:
     hostname: slurmmaster
     user: admin
     volumes:
-      - shared-vol:/home/admin:nocopy
+      - shared-vol:/home/admin
     environment:
       SLURM_CPUS_ON_NODE: ${SLURM_CPUS_ON_NODE}
     ports:
