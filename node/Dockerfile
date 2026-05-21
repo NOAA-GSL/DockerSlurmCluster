@@ -66,10 +66,10 @@ RUN chown munge:munge etc/munge/munge.key \
 
 RUN systemctl enable slurmd
 
-COPY ssh /home/admin/.ssh
+# COPY ssh /home/admin/.ssh
 
-RUN chown -R admin:admin /home/admin/.ssh \
- && chmod -R 700 /home/admin/.ssh
+# RUN chown -R admin:admin /home/admin/.ssh \
+# && chmod -R 700 /home/admin/.ssh
 
 EXPOSE 22 6817 6818 6819
 

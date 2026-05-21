@@ -7,7 +7,10 @@ x-node-common: &node-common
   environment:
     SLURM_CPUS_ON_NODE: ${SLURM_CPUS_ON_NODE}
   depends_on:
-    - slurmmaster
+    slurmmaster:
+      condition: service_started
+    slurmfrontend:
+      condition: service_healthy
 
 services:
   slurmfrontend:
@@ -24,6 +27,12 @@ services:
       - shared-vol:/home/admin
     ports:
       - 8888:8888
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/ssh-ready"]
+      interval: 2s
+      timeout: 2s
+      retries: 5
+      start_period: 5s
   slurmmaster:
     build:
       context: ./master
@@ -42,6 +51,9 @@ services:
       - 6817:6817
       - 6818:6818
       - 6819:6819
+    depends_on:
+      slurmfrontend:
+        condition: service_healthy
   slurmnode1:
     <<: *node-common
     build:
