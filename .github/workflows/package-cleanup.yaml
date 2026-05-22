@@ -13,76 +13,36 @@ jobs:
     permissions:
       packages: write
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        container: [frontend, master, node]     
     steps:
       -
-        name: Remove untagged versions of dockerslurmcluster/slurm-frontend
+        name: Remove untagged versions of dockerslurmcluster/slurm-${{ matrix.container }}
         uses: actions/delete-package-versions@v5
         with: 
-          package-name: 'dockerslurmcluster/slurm-frontend'
+          package-name: 'dockerslurmcluster/slurm-${{ matrix.container }}'
           package-type: 'container'
           min-versions-to-keep: 0
           delete-only-untagged-versions: 'true'
+  cleanup-caches:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        container: [frontend, master, node]
+        ubuntu: ['24.04', '26.04']
+        arch: [amd64, arm64]
+    steps:     
       -
-        name: Remove untagged versions of dockerslurmcluster/slurm-master
+        name: Remove untagged versions of dockerslurmcluster/${{ matrix.container }}-cache-${{ matrix.ubuntu }}-${{ matrix.arch }}
         uses: actions/delete-package-versions@v5
         with: 
-          package-name: 'dockerslurmcluster/slurm-master'
-          package-type: 'container'
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: 'true'
-      -
-        name: Remove untagged versions of dockerslurmcluster/slurm-node
-        uses: actions/delete-package-versions@v5
-        with: 
-          package-name: 'dockerslurmcluster/slurm-node'
-          package-type: 'container'
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: 'true'
-      -
-        name: Remove untagged versions of dockerslurmcluster/frontend-cache-amd64
-        uses: actions/delete-package-versions@v5
-        with: 
-          package-name: 'dockerslurmcluster/frontend-cache-amd64'
-          package-type: 'container'
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: 'true'
-      -
-        name: Remove untagged versions of dockerslurmcluster/frontend-cache-arm64
-        uses: actions/delete-package-versions@v5
-        with: 
-          package-name: 'dockerslurmcluster/frontend-cache-arm64'
-          package-type: 'container'
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: 'true'
-      -
-        name: Remove untagged versions of dockerslurmcluster/master-cache-amd64
-        uses: actions/delete-package-versions@v5
-        with: 
-          package-name: 'dockerslurmcluster/master-cache-amd64'
-          package-type: 'container'
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: 'true'
-      -
-        name: Remove untagged versions of dockerslurmcluster/master-cache-arm64
-        uses: actions/delete-package-versions@v5
-        with: 
-          package-name: 'dockerslurmcluster/master-cache-arm64'
-          package-type: 'container'
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: 'true'
-      -
-        name: Remove untagged versions of dockerslurmcluster/node-cache-amd64
-        uses: actions/delete-package-versions@v5
-        with: 
-          package-name: 'dockerslurmcluster/node-cache-amd64'
-          package-type: 'container'
-          min-versions-to-keep: 0
-          delete-only-untagged-versions: 'true'
-      -
-        name: Remove untagged versions of dockerslurmcluster/node-cache-arm64
-        uses: actions/delete-package-versions@v5
-        with: 
-          package-name: 'dockerslurmcluster/node-cache-arm64'
+          package-name: 'dockerslurmcluster/${{ matrix.container }}-cache-${{ matrix.ubuntu }}-${{ matrix.arch }}'
           package-type: 'container'
           min-versions-to-keep: 0
           delete-only-untagged-versions: 'true'
