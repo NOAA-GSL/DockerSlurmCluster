@@ -8,6 +8,7 @@ RUN apt-get update -y && apt-get install -y \
     git \
     mariadb-server \
     munge \
+    libmunge-dev \
     vim \
     wget \
     devscripts \
