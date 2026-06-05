@@ -91,7 +91,8 @@ RUN apt-get update -y && apt-get install -y \
  && dpkg --install slurm-smd-libpmi2-0_${SLURM_VERSION}-1_${ARCH}.deb \
  && rm -rf /tmp/munge* /tmp/libmunge* /tmp/slurm* \
  && rm -rf /var/lib/apt/lists/* \
- && rm -f /etc/ssh/ssh_host_*
+ && rm -f /etc/ssh/ssh_host_* \
+ && rm -rf /usr/bin/pebble /var/lib/pebble
 
 RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
  && echo "admin:admin" | chpasswd \
