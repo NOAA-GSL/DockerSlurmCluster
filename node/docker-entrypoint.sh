@@ -4,7 +4,7 @@
 export SLURM_CPUS_ON_NODE=${SLURM_CPUS_ON_NODE:-$(cat /proc/cpuinfo | grep processor | wc -l)}
 sudo sed -i "s/REPLACE_IT/${SLURM_CPUS_ON_NODE}/g" /etc/slurm/slurm.conf
 
-sudo service munge start
+sudo -u munge /usr/sbin/munged
 if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
 	sudo ssh-keygen -A
 fi
