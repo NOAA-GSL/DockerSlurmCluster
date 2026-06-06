@@ -95,6 +95,21 @@ RUN apt-get update -y && apt-get install -y \
  && rm -f /etc/ssh/ssh_host_* \
  && rm -rf /usr/bin/pebble /var/lib/pebble
 
+# Compatibility symlinks for libmunge. Debian/Ubuntu install libmunge under multiarch
+# paths (/usr/lib/x86_64-linux-gnu/ on amd64, /usr/lib/aarch64-linux-gnu/ on arm64),
+# but autotools projects that aren't multiarch-aware look in /usr/lib/ and
+# /usr/lib/pkgconfig/. Add symlinks so those projects' configure can find munge.
+# Notably, pmix 5.0.5 (used by openmpi in spack-stack downstream builds) hits this.
+RUN ARCH_TRIPLET="$(uname -m)-linux-gnu" \
+ && test -f /usr/lib/${ARCH_TRIPLET}/libmunge.so || { \
+        echo "ERROR: /usr/lib/${ARCH_TRIPLET}/libmunge.so missing -- is libmunge-dev installed?"; \
+        exit 1; \
+    } \
+ && mkdir -p /usr/lib/pkgconfig \
+ && ln -sf ${ARCH_TRIPLET}/libmunge.so /usr/lib/libmunge.so \
+ && ln -sf ${ARCH_TRIPLET}/libmunge.so.2 /usr/lib/libmunge.so.2 \
+ && ln -sf ${ARCH_TRIPLET}/pkgconfig/munge.pc /usr/lib/pkgconfig/munge.pc
+
 RUN useradd -m admin -s /usr/bin/bash -d /home/admin \
  && echo "admin:admin" | chpasswd \
  && adduser admin sudo \
