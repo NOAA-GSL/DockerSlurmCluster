@@ -4,7 +4,7 @@ FROM ${UBUNTU_BASE}
 ARG SLURM_VERSION=25.11.5
 ARG MUNGE_VERSION=0.5.18
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -y && apt-get install -y \
+RUN apt-get update -y && apt-get-upgrade -y && apt-get install -y \
     build-essential \
     git \
     mariadb-server \
