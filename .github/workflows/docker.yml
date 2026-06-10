@@ -82,6 +82,9 @@ jobs:
         name: Run a Slurm job
         run: docker exec slurm-frontend srun hostname
       -
+        name: Show accounting information for a Slurm job
+        run: docker exec slurm-frontend sacct
+      -
         name: Test ssh access to Slurm compute nodes
         run: |
           docker exec slurm-frontend timeout 1s ssh slurmnode1 hostname
