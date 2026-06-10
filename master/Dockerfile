@@ -4,7 +4,7 @@ FROM ${UBUNTU_BASE}
 ARG SLURM_VERSION=25.11.5
 ARG MUNGE_VERSION=0.5.18
 ARG DEBIAN_FRONTEND=noninteractive
-RUN apt-get update -y && apt-get install -y \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y \
     build-essential \
     git \
     mariadb-server \
@@ -87,6 +87,7 @@ RUN apt-get update -y && apt-get install -y \
  && dpkg --install slurm-smd_${SLURM_VERSION}-1_${ARCH}.deb \
  && dpkg --install slurm-smd-client_${SLURM_VERSION}-1_${ARCH}.deb \
  && dpkg --install slurm-smd-slurmctld_${SLURM_VERSION}-1_${ARCH}.deb \
+ && dpkg --install slurm-smd-slurmdbd_${SLURM_VERSION}-1_${ARCH}.deb \
  && dpkg --install slurm-smd-dev_${SLURM_VERSION}-1_${ARCH}.deb \
  && dpkg --install slurm-smd-libpmi0_${SLURM_VERSION}-1_${ARCH}.deb \
  && dpkg --install slurm-smd-libpmi2-0_${SLURM_VERSION}-1_${ARCH}.deb \
@@ -126,6 +127,7 @@ RUN mkdir -p /var/run/sshd \
 COPY munge.key /etc/munge/
 COPY slurm.conf /etc/slurm/
 COPY cgroup.conf /etc/slurm/
+COPY slurmdbd.conf /etc/slurm/
 COPY docker-entrypoint.sh /etc/slurm/
 
 RUN chown munge:munge etc/munge/munge.key \
@@ -136,7 +138,8 @@ RUN chown munge:munge etc/munge/munge.key \
  && chown slurm:slurm /etc/slurm/*.conf \
  && chmod 600 /etc/munge/munge.key \
  && chmod 775 /etc/slurm \
- && chmod 775 /etc/slurm/*.conf
+ && chmod 775 /etc/slurm/*.conf \
+ && chmod 600 /etc/slurm/slurmdbd.conf
 
 RUN systemctl enable slurmctld
 
