@@ -12,3 +12,4 @@ sudo service ssh start
 sudo slurmd -N $SLURM_NODENAME
 
 tail -f /dev/null
+
